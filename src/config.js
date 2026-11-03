@@ -180,7 +180,7 @@ export const UPGRADES = [
       { cost: 4800, maxHard: 6, drillSpeed: 2.5, drillDmg: 48 },
       { cost: 9500, maxHard: 6, drillSpeed: 3.1, drillDmg: 64 },
     ],
-    describe: (l) => `Cuts ${HARDNESS_NAMES[l.maxHard]} · speed ×${l.drillSpeed.toFixed(2)} · ram ${l.drillDmg}`,
+    describe: (l) => `Cuts ${HARDNESS_NAMES[l.maxHard]} · ×${l.drillSpeed} speed · ${l.drillDmg} ram`,
   },
   {
     id: 'tank', name: 'Oxygen Tank', blurb: 'More air means longer, deeper dives.',
