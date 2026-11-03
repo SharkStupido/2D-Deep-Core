@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Deep Core</title>
+  <meta name="description" content="A vertical extraction roguelike: drill through shifting strata, manage your oxygen, upgrade your rig and survive what lives below.">
+  <meta name="theme-color" content="#07060b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2307060b'/%3E%3Cpath d='M16 27 9 13h14z' fill='%23c3c7d0'/%3E%3Crect x='8' y='5' width='16' height='9' rx='2' fill='%23f2b632'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="Deep Core game view"></canvas>
+  <div id="ui" hidden></div>
+  <div id="touch" class="touch" hidden>
+    <div class="dpad">
+      <button class="tbtn up" data-dir="up" aria-label="Thrust up">▲</button>
+      <button class="tbtn left" data-dir="left" aria-label="Move left">◀</button>
+      <button class="tbtn right" data-dir="right" aria-label="Move right">▶</button>
+      <button class="tbtn down" data-dir="down" aria-label="Drill down">▼</button>
+    </div>
+    <button class="tbtn pause-btn" data-act="pause" aria-label="Pause">II</button>
+  </div>
+  <noscript><p class="noscript">Deep Core needs JavaScript to run.</p></noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
