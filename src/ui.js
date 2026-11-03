@@ -124,9 +124,12 @@ export class UI {
     this.show('outpost', `
       <div class="screen outpost">
         <header class="op-head">
-          <div>
-            <div class="eyebrow">Topside outpost</div>
-            <h2>Rig Bay</h2>
+          <div class="op-title">
+            <canvas id="rig-preview" class="rig-preview" width="46" height="36" aria-label="Your rig, showing its installed upgrades"></canvas>
+            <div>
+              <div class="eyebrow">Topside outpost</div>
+              <h2>Rig Bay</h2>
+            </div>
           </div>
           <div class="op-head-right">
             <button class="btn ghost small" data-action="mute">${save.settings.muted ? 'Sound off' : 'Sound on'}</button>

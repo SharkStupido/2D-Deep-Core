@@ -56,6 +56,10 @@ On touch screens an on-screen d-pad appears, and the supply/pulse buttons on the
 - **Supplies** (consumed, and lost with the rig): evac beacon, O₂ canister, patch kit, blast charge. Blast charges cut one or two hardness tiers beyond your drill, and they collect any ore they shatter.
 - **Survey contracts**: each dive you choose between a standard survey and two random contracts that trade risk for reward (thin air for better prices, infestations, seismic seasons, blackouts…).
 
+### The rig
+
+Your rig is a pixel-art excavator with a pilot in a glass canopy, and it shows its state at a glance. The hopper on its back heaps up with the ore you're carrying (and the Heart, once you have it). The mast on top glows when the pulse emitter is charged. The pilot looks where you're drilling. It squashes on hard landings, smokes and cracks when the hull is failing, and flashes white when hit. Upgrades are bolted on where you can see them: the drill head changes material at every level (steel, bronze, carbide, gold, crystal, voidsteel), and armour plates, ceramic heat tiles, an oxygen tank, shield emitters and hotter thrusters appear as you buy them. The outpost shows a live preview of the rig as you shop.
+
 Progress is saved in the browser's local storage.
 
 ## Project layout
@@ -71,7 +75,7 @@ src/
   enemies.js                hostile AI (flying, walking, burrowing, phasing)
   hazards.js                strata shifts, boulders, lava flow, gas and spore clouds
   meta.js                   between-dive progression: shop, contracts, payouts
-  render/                   canvas renderer, procedural textures, particles, HUD
+  render/                   canvas renderer, procedural textures, the rig sprite, particles, HUD
   ui.js, input.js, audio.js, save.js, main.js   browser glue
 tests/                      node:test suites for generation, mechanics and economy
 tools/serve.js              zero-dependency static server
@@ -85,4 +89,4 @@ The simulation (`dive.js` and everything it imports) never touches the DOM. That
 npm test
 ```
 
-Requires Node 18 or newer. The suites cover world-generation invariants across several seeds (walls, surface, ore per layer, a reachable Heart, no lava near it) and core mechanics: drilling gates, oxygen, extraction, suffocation, cargo limits, fall damage, combat, supplies, blast charges, boulders, lava, strata shifts, deterministic replay. The economy is covered too: purchases, payouts, death penalties and save repair.
+Requires Node 18 or newer. The suites cover world-generation invariants across several seeds (walls, surface, ore per layer, a reachable Heart, no lava near it) and core mechanics: drilling gates, oxygen, extraction, suffocation, cargo limits, fall damage, combat, supplies, blast charges, boulders, lava, strata shifts, deterministic replay. The economy is covered too: purchases, payouts, death penalties and save repair. The rig sprite builder is tested for a clean outline, rolling treads, cargo, upgrades and state cues.

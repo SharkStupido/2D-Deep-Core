@@ -109,7 +109,7 @@ kbd {
 .btn.ghost { background: transparent; }
 .btn.danger { background: rgba(255, 84, 104, 0.12); border-color: rgba(255, 84, 104, 0.5); color: #ffb3bd; }
 .btn.big { font-size: 17px; padding: 14px 28px; }
-.btn.small { font-size: 12px; padding: 6px 12px; }
+.btn.small { font-size: 12px; padding: 6px 12px; white-space: nowrap; }
 .btn.buy { min-width: 84px; padding: 7px 12px; font-size: 13px; color: var(--green); border-color: rgba(125, 255, 154, 0.35); }
 .btn.buy:disabled { color: var(--dim); border-color: rgba(255, 255, 255, 0.12); }
 
@@ -186,6 +186,15 @@ kbd {
   margin: 0 auto;
 }
 .op-head h2 { font-size: 30px; letter-spacing: 0.03em; }
+.op-title { display: flex; align-items: flex-end; gap: 16px; min-width: 0; }
+.rig-preview {
+  width: 138px;
+  height: 108px;
+  image-rendering: pixelated;
+  background: radial-gradient(ellipse at 45% 92%, rgba(255, 179, 64, 0.22), rgba(255, 179, 64, 0) 62%);
+  border-bottom: 2px solid var(--edge-strong);
+  flex: none;
+}
 .op-head-right { display: flex; align-items: center; gap: 14px; }
 .credits { font-size: 28px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
 .op-body {
@@ -402,6 +411,8 @@ kbd {
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   .op-head h2 { font-size: 24px; }
+  .rig-preview { width: 92px; height: 72px; }
+  .op-title { gap: 10px; }
   .credits { font-size: 22px; }
   .upgrades { grid-template-columns: minmax(0, 1fr); }
   .btn.big { padding: 12px 18px; font-size: 15px; }
@@ -418,6 +429,8 @@ kbd {
   .supply .key { display: none; }
   .flash { font-size: 12px; }
   .op-head-right { gap: 10px; }
+  .op-head .eyebrow { font-size: 10px; letter-spacing: 0.1em; white-space: nowrap; }
+  .op-head .btn.small { font-size: 11px; padding: 5px 8px; }
 }
 
 @media (pointer: coarse) {

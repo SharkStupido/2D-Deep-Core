@@ -9,8 +9,9 @@ export const DRILL_TIME = 0.24; // seconds per hardness tier at drill speed ×1
 
 /** The excavation rig: movement, drilling, life support. */
 export class Rig {
-  constructor(x, y, stats) {
+  constructor(x, y, stats, levels = {}) {
     this.stats = stats;
+    this.levels = levels; // upgrade levels, used to dress the sprite
     this.x = x;
     this.y = y;
     this.fromX = x;

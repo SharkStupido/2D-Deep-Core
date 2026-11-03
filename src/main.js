@@ -8,8 +8,9 @@ import { Sfx } from './audio.js';
 import { UI } from './ui.js';
 import { loadSave, storeSave, clearSave, hasSave } from './save.js';
 import {
-  newSave, buyUpgrade, buyConsumable, settleDive, drawContracts, upgradeDef, consumableDef,
+  newSave, buyUpgrade, buyConsumable, settleDive, drawContracts, upgradeDef, consumableDef, upgradeLevels,
 } from './meta.js';
+import { drawRigPreview } from './render/rigSprite.js';
 
 const STEP = 1 / 60;
 const BACKDROP_SEED = 0xc0ffee;
@@ -142,6 +143,7 @@ function onAction(name, data = {}) {
       if (r.ok) {
         persist();
         sfx.play('buy');
+        backdrop.rig.levels = upgradeLevels(save.upgrades);
         renderOutpost(`${upgradeDef(data.id).name} upgraded to level ${save.upgrades[data.id]}`);
       } else {
         sfx.play('deny');
@@ -275,6 +277,8 @@ function frame(now) {
       renderer.render(backdrop, dt, { hud: false, camY, ambient: 0.5, rigLight: false });
     } else {
       renderer.render(backdrop, dt, { hud: false, camY: SURFACE_Y * TILE - v.h * 0.62, ambient: 0.3 });
+      const preview = state === 'outpost' && document.getElementById('rig-preview');
+      if (preview) drawRigPreview(preview, upgradeLevels(save.upgrades), renderer.time);
     }
   }
   requestAnimationFrame(frame);
@@ -288,5 +292,6 @@ window.deepcore = {
   get state() { return state; },
   get dive() { return dive; },
   get save() { return save; },
+  renderer,
   action: onAction,
 };

@@ -4,7 +4,7 @@ import { generateWorld } from './worldgen.js';
 import { Rig, NO_INPUT } from './rig.js';
 import { Enemy, canEnemyEnter, updateEnemies, updateSpawns } from './enemies.js';
 import { Physics, Tremors, updateClouds } from './hazards.js';
-import { rigStats } from './meta.js';
+import { rigStats, upgradeLevels } from './meta.js';
 
 /**
  * One descent: world, rig, hostiles and hazards. Pure game state: it never
@@ -19,7 +19,7 @@ export class Dive {
     this.world = gen.world;
     this.chamber = gen.chamber;
     this.rng = new RNG(this.seed ^ 0x5bd1e995);
-    this.rig = new Rig(gen.spawn.x, gen.spawn.y, rigStats(upgrades));
+    this.rig = new Rig(gen.spawn.x, gen.spawn.y, rigStats(upgrades), upgradeLevels(upgrades));
     this.enemies = [];
     this.occ = new Map();
     for (const e of gen.enemies) this.addEnemyAt(e.type, e.x, e.y);

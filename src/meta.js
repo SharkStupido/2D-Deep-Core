@@ -75,6 +75,13 @@ export function buyConsumable(save, id) {
   return { ok: true };
 }
 
+/** Upgrade levels clamped to what exists, with every upgrade present. */
+export function upgradeLevels(upgrades = {}) {
+  const out = {};
+  for (const u of UPGRADES) out[u.id] = Math.min(u.levels.length, Math.max(1, upgrades[u.id] || 1));
+  return out;
+}
+
 /** Flatten upgrade levels into the rig's working stats. */
 export function rigStats(upgrades = {}) {
   const stats = {};

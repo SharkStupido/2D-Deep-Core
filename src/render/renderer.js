@@ -1,10 +1,11 @@
 import { TILE, T, TILES, LAYERS, SURFACE_Y, ITEMS, ENEMIES, HARDNESS_NAMES, CONSUMABLES } from '../config.js';
-import { hash2 } from '../rng.js';
+import { hash2, RNG } from '../rng.js';
 import { cloudRadius } from '../hazards.js';
 import { DIRS } from '../rig.js';
 import { buildTextures, shade, rgba } from './textures.js';
 import { Particles } from './particles.js';
 import { drawHud, FONT } from './hud.js';
+import { rigBodyCanvas, cargoChunks, drawDrill, drawFlames, drawShieldRing } from './rigSprite.js';
 
 const LIGHT_SCALE = 0.25;
 const ENEMY_GLOW = { magmaslug: [1.3, 0.55], warden: [1.5, 0.5], gloomwing: [0.6, 0.3], shardmite: [0.8, 0.4], sporeling: [0.8, 0.35], grub: [0.5, 0.2] };
@@ -32,6 +33,9 @@ export class Renderer {
     this.lctx = this.light.getContext('2d');
     this.glow = makeGlowSprite();
     this.throttle = new Map();
+    this.frameDt = 0;
+    this.rigAnim = { roll: 0, squash: 0, smoke: 0, dust: 0, dmg: 0 };
+    this.crack = { key: '', path: [] };
     this.stars = Array.from({ length: 90 }, (_, i) => ({
       x: hash2(i, 1, 99), y: hash2(i, 2, 99), s: hash2(i, 3, 99) < 0.15 ? 2 : 1, p: hash2(i, 4, 99) * 6.28,
     }));
@@ -78,6 +82,7 @@ export class Renderer {
     this.hitFlash = 0;
     this.camFor = null;
     this.throttle.clear();
+    this.rigAnim = { roll: 0, squash: 0, smoke: 0, dust: 0, dmg: 0 };
   }
 
   addShake(a) { this.shake = Math.min(18, Math.max(this.shake, a)); }
@@ -153,6 +158,7 @@ export class Renderer {
           break;
         case 'land':
           P.burst(c(e.x), (e.y + 1) * TILE, { n: e.hard ? 14 : 6, color: '#8a7a6a', speed: 80, angle: -Math.PI / 2, spread: Math.PI, size: 3, life: 0.5 });
+          this.rigAnim.squash = e.hard ? 0.24 : 0.12;
           if (e.hard) this.addShake(7);
           break;
         case 'rigHit':
@@ -295,6 +301,7 @@ export class Renderer {
 
   render(dive, dt, opts = {}) {
     this.time += dt;
+    this.frameDt = dt;
     const ctx = this.ctx;
     const v = this.view;
     v.touch = !!opts.touch;
@@ -339,6 +346,7 @@ export class Renderer {
     // The shift warning sits above the darkness so it reads even outside lamp range.
     ctx.save();
     ctx.translate(-camX, -camY);
+    if (opts.showRig !== false && opts.rigLight !== false) this.drawLampBeam(ctx, dive);
     this.drawBandWarning(ctx, dive);
     ctx.restore();
     if (opts.hud !== false) {
@@ -654,20 +662,17 @@ export class Renderer {
     const a = dive.rig.action;
     if (!a || a.type !== 'drill') return;
     const p = Math.min(1, a.t / a.dur);
+    const key = `${a.tx},${a.ty},${a.dir}`;
+    if (this.crack.key !== key) this.crack = { key, path: crackPath(a.dir, a.tx * 7919 + a.ty * 104729) };
+    const path = this.crack.path;
+    const n = Math.ceil(p * path.length);
     const px = a.tx * TILE;
     const py = a.ty * TILE;
-    ctx.strokeStyle = `rgba(0,0,0,${0.35 + p * 0.4})`;
-    ctx.lineWidth = 2;
-    const n = Math.ceil(p * 6);
-    ctx.beginPath();
-    for (let k = 0; k < n; k++) {
-      const ang = k * 1.05 + 0.4;
-      const len = 6 + p * 10;
-      ctx.moveTo(px + 16, py + 16);
-      ctx.lineTo(px + 16 + Math.cos(ang) * len, py + 16 + Math.sin(ang) * len);
-      ctx.lineTo(px + 16 + Math.cos(ang + 0.4) * len * 1.3, py + 16 + Math.sin(ang + 0.4) * len * 1.3);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = path[i];
+      ctx.fillStyle = i % 5 === 4 ? 'rgba(255,240,200,0.28)' : 'rgba(10,6,14,0.72)';
+      ctx.fillRect(px + x * 2, py + y * 2, 2, 2);
     }
-    ctx.stroke();
     if (Math.random() < 0.6) {
       const [dx, dy] = DIRS[a.dir];
       const hx = (dive.rig.x + 0.5 + dx * 0.5) * TILE;
@@ -796,53 +801,155 @@ export class Renderer {
   drawRig(ctx, dive) {
     const rig = dive.rig;
     if (dive.status === 'dead') return;
+    const t = this.time;
+    const dt = this.frameDt;
+    const anim = this.rigAnim;
     const p = rig.renderPos();
-    let px = (p.x + 0.5) * TILE;
-    let py = (p.y + 0.5) * TILE;
+    let px = p.x * TILE;
+    let py = p.y * TILE;
     const a = rig.action;
-    if (a && a.type === 'drill') {
-      px += (Math.random() - 0.5) * 1.6;
-      py += (Math.random() - 0.5) * 1.6;
-    } else if (a && a.type === 'ram') {
-      const k = Math.sin(Math.min(1, a.t / a.dur) * Math.PI) * 7;
+    const drilling = !!a && a.type === 'drill';
+    const ramming = !!a && a.type === 'ram';
+    if (ramming) {
+      const k = Math.sin(Math.min(1, a.t / a.dur) * Math.PI) * 6;
       const [dx, dy] = DIRS[a.dir];
       px += dx * k;
       py += dy * k;
+    } else if (drilling && Math.random() < 0.5) {
+      px += Math.random() < 0.5 ? -1 : 1; // the whole rig shudders against the rock
     }
+    const cx = px + TILE / 2;
+    const cy = py + TILE / 2;
+
+    // Evac beam.
     let lift = 0;
     if (rig.evac > 0 || dive.status === 'extracted') {
       const k = dive.status === 'extracted' && rig.evac <= 0 && rig.y >= SURFACE_Y ? 1 : 1 - Math.max(0, rig.evac) / 1.6;
       if (rig.evac > 0 || rig.y >= SURFACE_Y) {
-        const beamA = 0.25 + 0.2 * Math.sin(this.time * 20);
-        const g = ctx.createLinearGradient(px - 20, 0, px + 20, 0);
+        const beamA = 0.25 + 0.2 * Math.sin(t * 20);
+        const g = ctx.createLinearGradient(cx - 20, 0, cx + 20, 0);
         g.addColorStop(0, 'rgba(255,207,74,0)');
         g.addColorStop(0.5, `rgba(255,230,150,${beamA + 0.2})`);
         g.addColorStop(1, 'rgba(255,207,74,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(px - 20, py - 2000, 40, 2000 + 18);
+        ctx.fillRect(cx - 20, cy - 2000, 40, 2000 + 18);
         lift = k * k * 40;
-        if (Math.random() < 0.5) this.particles.burst(px, py + 10, { n: 1, color: '#ffe9a6', speed: 40, gravity: -200, size: 2, life: 0.6 });
+        if (Math.random() < 0.5) this.particles.burst(cx, cy + 10, { n: 1, color: '#ffe9a6', speed: 40, gravity: -200, size: 2, life: 0.6 });
       }
     }
+
+    // Animation state: rolling treads, suspension bob, what the pilot is doing.
+    const moving = rig.moveT < 1;
+    const horiz = moving && rig.fromY === rig.y && rig.fromX !== rig.x;
+    const canFall = rig.canFall(dive);
+    if (horiz) anim.roll += dt * 14;
+    else if (drilling) anim.roll += dt * 3;
+    anim.squash = Math.max(0, anim.squash - dt);
+    let bob = 0;
+    if (anim.squash > 0) bob = 1;
+    else if (drilling) bob = Math.floor(t * 18) % 2;
+    else if (horiz) bob = Math.floor(t * 7) % 2;
+    else if (!moving && !canFall) bob = t % 1.3 < 0.16 ? 1 : 0; // the engine's idle chug
+    const s = rig.stats;
+    const hullF = rig.hull / s.maxHull;
+    const state = {
+      frame: Math.floor(anim.roll) % 12,
+      bob,
+      levels: rig.levels,
+      cargo: cargoChunks(rig.cargo, rig.cargoUsed, s.cargoCap),
+      heart: rig.heart,
+      pulse: rig.pulseCd > 0 ? 'charging' : Math.floor(t * 2.5) % 2 ? 'beat' : 'ready',
+      damage: hullF < 0.25 ? 2 : hullF < 0.5 ? 1 : 0,
+      look: rig.facing === 'up' ? -1 : rig.facing === 'down' ? 1 : 0,
+      flash: rig.invuln > 0.3,
+    };
+    const climbing = moving && rig.y < rig.fromY;
+    const thrust = rig.thrusting && rig.evac <= 0 && (climbing || canFall);
+    const dLevel = rig.levels.drill || 1;
+    let len = dLevel >= 4 ? 5 : 4;
+    if (drilling) len += Math.round(2 * Math.min(1, a.t / a.dur));
+    else if (ramming) len += 2;
+    const spin = drilling || ramming ? Math.floor(t * 30) : 0;
+    const drillFacing = rig.facing === 'up' ? 'up' : rig.facing === 'down' ? 'down' : 'side';
+
     ctx.save();
     ctx.translate(Math.round(px), Math.round(py - lift));
-    if (rig.invuln > 0 && Math.floor(this.time * 24) % 2) ctx.globalAlpha = 0.45;
-    const thrust = rig.thrusting && (rig.moveT < 1 || !rig.canFall(dive));
-    drawRigSprite(ctx, rig, this.time, thrust, a && a.type === 'drill');
-    if (rig.shield > 0.5) {
-      const hit = rig.sinceHit < 0.35;
-      ctx.globalAlpha = (hit ? 0.55 : 0.1 + 0.05 * Math.sin(this.time * 3)) * Math.min(1, rig.shield / 10);
-      ctx.strokeStyle = '#5fe1ff';
-      ctx.lineWidth = hit ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
-      ctx.stroke();
+    if (rig.faceH < 0) {
+      ctx.translate(TILE, 0);
+      ctx.scale(-1, 1);
     }
+    if (rig.invuln > 0 && rig.invuln <= 0.3 && Math.floor(t * 24) % 2) ctx.globalAlpha = 0.5;
+    if (thrust) drawFlames(ctx, rig.levels.thrusters || 1);
+    ctx.drawImage(rigBodyCanvas(state), 0, 0);
+    drawDrill(ctx, drillFacing, dLevel, spin, len, bob);
     ctx.restore();
-    if (rig.heart) {
-      ctx.fillStyle = `rgba(255,90,209,${0.5 + 0.3 * Math.sin(this.time * 6)})`;
-      ctx.fillRect(Math.round(px) - 3, Math.round(py - lift) - 22, 6, 6);
+
+    if (rig.shield > 0.5) {
+      ctx.save();
+      ctx.translate(Math.round(cx), Math.round(cy - lift));
+      drawShieldRing(ctx, t, Math.min(1, 0.4 + rig.shield / s.maxShield), rig.sinceHit < 0.35);
+      ctx.restore();
     }
+    if (dive.status === 'active' && rig.evac <= 0) this.rigFx(rig, px, py, { drilling, horiz, canFall, thrust, damage: state.damage, bob });
+  }
+
+  /** Exhaust smoke, tread dust, sparks from a failing hull, embers from the thrusters. */
+  rigFx(rig, px, py, f) {
+    const anim = this.rigAnim;
+    const dt = this.frameDt;
+    const P = this.particles;
+    const back = -rig.faceH;
+    const cx = px + TILE / 2;
+    anim.smoke -= dt;
+    anim.dust -= dt;
+    anim.dmg -= dt;
+    if (f.drilling && anim.smoke <= 0) {
+      anim.smoke = 0.11;
+      const ex = rig.faceH > 0 ? px - 1 : px + TILE + 1;
+      P.burst(ex, py + 15 + f.bob * 2, { n: 1, color: ['#5a5464', '#7a7484', '#3a3540'], speed: 26, angle: -Math.PI / 2 + back * 0.8, spread: 0.6, gravity: -50, size: 3, life: 0.8, drag: 0.8 });
+    }
+    if (f.horiz && !f.canFall && anim.dust <= 0) {
+      anim.dust = 0.06;
+      P.burst(cx + back * 11, py + TILE - 2, { n: 1, color: ['#8a7a6a', '#6a5a4a'], speed: 45, angle: -Math.PI / 2 + back * 0.9, spread: 0.6, gravity: 220, size: 2, life: 0.35 });
+    }
+    if (f.damage >= 2 && anim.dmg <= 0) {
+      anim.dmg = 0.16;
+      P.burst(cx - rig.faceH * 3, py + 9, { n: 1, color: ['#2a2430', '#3a3540', '#4a4552'], speed: 22, angle: -Math.PI / 2, spread: 0.5, gravity: -70, size: 4, life: 1.0, drag: 0.85 });
+      if (Math.random() < 0.3) P.burst(cx, py + 16, { n: 3, color: ['#ffe9a6', '#ffb347'], speed: 120, size: 2, life: 0.25 });
+    }
+    if (f.thrust && Math.random() < 0.45) {
+      const nx = rig.faceH > 0 ? (Math.random() < 0.5 ? 8 : 24) : (Math.random() < 0.5 ? 24 : 8);
+      P.burst(px + nx, py + TILE + 8, { n: 1, color: ['#ffb347', '#ff6a2a'], speed: 50, angle: Math.PI / 2, spread: 0.7, gravity: 60, size: 2, life: 0.3 });
+    }
+  }
+
+  /** A faint shaft of light from the headlamp, drawn over the darkness. */
+  drawLampBeam(ctx, dive) {
+    const rig = dive.rig;
+    const dark = this.darkness || 0;
+    if (dive.status !== 'active' || rig.evac > 0 || dark < 0.15) return;
+    if (rig.facing !== 'left' && rig.facing !== 'right') return;
+    const p = rig.renderPos();
+    const dir = rig.faceH;
+    const lx = p.x * TILE + (dir > 0 ? 28 : 4);
+    const ly = p.y * TILE + 15;
+    const len = rig.stats.light * dive.mod.light * TILE * (rig.blinded ? 0.5 : 0.95);
+    const spread = 0.3;
+    const alpha = (0.06 + 0.02 * ((rig.levels.lamp || 1) - 1)) * dark;
+    const g = ctx.createLinearGradient(lx, ly, lx + dir * len, ly);
+    g.addColorStop(0, `rgba(255,240,190,${alpha})`);
+    g.addColorStop(1, 'rgba(255,240,190,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(lx, ly - 1);
+    ctx.lineTo(lx + dir * len, ly - len * spread);
+    ctx.lineTo(lx + dir * len, ly + len * spread);
+    ctx.lineTo(lx, ly + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   // ------------------------------------------------------------ light
@@ -965,121 +1072,34 @@ function makeGlowSprite() {
   return c;
 }
 
-function drawRigSprite(ctx, rig, t, thrust, drilling) {
-  const f = rig.faceH;
-  if (thrust) {
-    for (const ox of [-7, 5]) {
-      const fl = 7 + Math.random() * 7;
-      const g = ctx.createLinearGradient(0, 13, 0, 13 + fl);
-      g.addColorStop(0, '#fff3b0');
-      g.addColorStop(0.4, '#ffb340');
-      g.addColorStop(1, 'rgba(255,90,30,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(ox - 3, 13);
-      ctx.lineTo(ox + 3, 13);
-      ctx.lineTo(ox, 13 + fl);
-      ctx.closePath();
-      ctx.fill();
+/** Crack texels for a tile being drilled, growing from the side the drill bites. */
+function crackPath(dir, seed) {
+  const rng = new RNG(seed);
+  const [dx, dy] = DIRS[dir];
+  const ex = dx > 0 ? 0 : dx < 0 ? 15 : 7;
+  const ey = dy > 0 ? 0 : dy < 0 ? 15 : 7;
+  const branches = [-1, 0, 1].map((sway) => ({ x: ex, y: ey, sway }));
+  const out = [];
+  const seen = new Set();
+  for (let step = 0; step < 13; step++) {
+    for (const b of branches) {
+      if (rng.chance(0.8)) {
+        b.x += dx;
+        b.y += dy;
+      }
+      const lat = rng.chance(0.55) ? b.sway : rng.sign();
+      b.x += lat * Math.abs(dy);
+      b.y += lat * Math.abs(dx);
+      b.x = Math.max(0, Math.min(15, b.x));
+      b.y = Math.max(0, Math.min(15, b.y));
+      const k = b.y * 16 + b.x;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push([b.x, b.y]);
+      }
     }
   }
-  ctx.save();
-  ctx.scale(f, 1);
-  // Treads.
-  ctx.fillStyle = '#211d27';
-  roundRect(ctx, -13, 6, 26, 8, 3);
-  ctx.fill();
-  ctx.fillStyle = '#5a5464';
-  const off = (t * (rig.moveT < 1 ? 30 : 0)) % 5;
-  for (let x = -12 + off; x < 12; x += 5) ctx.fillRect(Math.round(x), 6, 2, 2);
-  ctx.fillStyle = '#8a8494';
-  for (const x of [-8, 0, 8]) {
-    ctx.beginPath();
-    ctx.arc(x, 10.5, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // Hull.
-  ctx.fillStyle = '#f2b632';
-  roundRect(ctx, -12, -9, 22, 16, 3);
-  ctx.fill();
-  ctx.fillStyle = '#c4861a';
-  ctx.fillRect(-12, 2, 22, 5);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(-12, 2, 22, 5);
-  ctx.clip();
-  ctx.fillStyle = '#2a2230';
-  for (let x = -14; x < 12; x += 6) {
-    ctx.beginPath();
-    ctx.moveTo(x, 7);
-    ctx.lineTo(x + 3, 2);
-    ctx.lineTo(x + 6, 2);
-    ctx.lineTo(x + 3, 7);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.fillStyle = '#ffd36a';
-  ctx.fillRect(-11, -8, 20, 2);
-  // Cockpit.
-  ctx.fillStyle = '#123040';
-  roundRect(ctx, 1, -7, 8, 7, 2);
-  ctx.fill();
-  ctx.fillStyle = '#5fe1ff';
-  ctx.fillRect(2, -6, 4, 2);
-  ctx.fillStyle = 'rgba(95,225,255,0.4)';
-  ctx.fillRect(2, -4, 6, 3);
-  // Exhaust stack and beacon.
-  ctx.fillStyle = '#5a5464';
-  ctx.fillRect(-10, -13, 3, 5);
-  ctx.fillStyle = Math.sin(t * 5) > 0 ? '#ff4d5e' : '#7dff9a';
-  ctx.fillRect(-10, -15, 3, 2);
-  // Headlamp.
-  ctx.fillStyle = '#fff6c8';
-  ctx.fillRect(9, -1, 2, 3);
-  ctx.restore();
-  drawDrill(ctx, rig.facing, f, t, drilling);
-}
-
-function drawDrill(ctx, facing, f, t, drilling) {
-  const spin = (t * (drilling ? 40 : 3)) % 3;
-  ctx.save();
-  if (facing === 'down') ctx.rotate(Math.PI / 2);
-  else if (facing === 'up') ctx.rotate(-Math.PI / 2);
-  else if (facing === 'left' || (facing !== 'right' && f < 0)) ctx.scale(-1, 1);
-  const bx = facing === 'down' ? 13 : facing === 'up' ? 9 : 10;
-  ctx.fillStyle = '#4a4552';
-  ctx.fillRect(bx - 3, -4, 4, 8);
-  ctx.fillStyle = '#c3c7d0';
-  ctx.beginPath();
-  ctx.moveTo(bx, -5);
-  ctx.lineTo(bx + 10, 0);
-  ctx.lineTo(bx, 5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#6c707a';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let k = 0; k < 3; k++) {
-    const pos = spin + k * 3;
-    const h = 5 * (1 - pos / 10);
-    ctx.moveTo(bx + pos, -h);
-    ctx.lineTo(bx + pos + 1.5, h);
-  }
-  ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(bx + 1, -3, 2, 1);
-  ctx.restore();
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  return out;
 }
 
 function drawEnemySprite(ctx, e, t, flash) {
